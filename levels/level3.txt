@@ -1,0 +1,6 @@
+level height: 20.0
+positions:(0.0, 0.0, 0.0) size:(8.0, 1.0, 2.0) type:(ground) material:(stone) assetname:(floor3)
+positions:(-2.0, 3.5, 0.0) size:(1.5, 0.5, 1.0) type:(platform) material:(stone) assetname:(plat3_1)
+positions:(2.0, 6.5, 0.0) size:(1.5, 0.5, 1.0) type:(platform) material:(stone) assetname:(plat3_2)
+positions:(-2.0, 9.5, 0.0) size:(1.5, 0.5, 1.0) type:(platform) material:(stone) assetname:(plat3_3)
+positions:(2.0, 12.5, 0.0) size:(3.0, 0.5, 1.0) type:(platform) material:(stone) assetname:(plat3_4)

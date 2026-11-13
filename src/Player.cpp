@@ -1,94 +1,38 @@
 #include "Player.hpp"
-#include "Level.hpp"
 #include <algorithm>
-#include <iostream>
+#include <cmath>
 
-Player::Player(glm::vec3 startPos) {
-    position = startPos;
-    velocity = glm::vec3(0.0f);
-    size = glm::vec3(0.6f, 1.2f, 0.6f);
+void Player::update(float dt, const FlightInput& input, float cameraX) {
+    invulnerability = std::max(0.0f, invulnerability - dt);
+    fireCooldown = std::max(0.0f, fireCooldown - dt);
+    missileCooldown = std::max(0.0f, missileCooldown - dt);
+    glm::vec2 direction = input.direction;
+    if (glm::length(direction) > 1.0f) direction = glm::normalize(direction);
+    const glm::vec2 jets(std::max(0.0f,direction.y),std::max(0.0f,-direction.y));
+    maneuverJets=glm::mix(maneuverJets,jets,1.0f-std::exp(-20.0f*dt));
+    if(!input.laser) laserExhausted=false;
+    laserFiring=input.laser && !laserExhausted && energy>=LaserEnergyPerSecond*dt;
+    if(input.laser && !laserFiring) { laserExhausted=true; energy=0; }
+    boosting = input.boost && energy > (boosting ? 0.0f : 15.0f);
+    const float regeneration=boosting?0.0f:input.laser?0.0f:19.0f;
+    const float drain=(boosting?32.0f:0.0f)+(laserFiring?LaserEnergyPerSecond:0.0f);
+    energy = std::clamp(energy + (regeneration-drain)*dt, 0.0f, maxEnergy);
+    if(input.laser && energy<=0) laserExhausted=true;
+    const float thrust = boosting ? 12.0f : 7.0f;
+    const glm::vec2 target(CruiseSpeed + direction.x * thrust, direction.y * thrust);
+    velocity += (target - velocity) * (1.0f - std::exp(-6.0f * dt));
+    position += velocity * dt;
+    const float minX = cameraX - 11.0f + size.x * 0.5f;
+    const float maxX = cameraX + 10.0f - size.x * 0.5f;
+    const float maxY = Corridor - size.y * 0.5f;
+    if (position.x < minX) { position.x = minX; velocity.x = CruiseSpeed; }
+    if (position.x > maxX) { position.x = maxX; velocity.x = CruiseSpeed; }
+    if (position.y < -maxY) { position.y = -maxY; velocity.y = 0.0f; }
+    if (position.y > maxY) { position.y = maxY; velocity.y = 0.0f; }
 }
-
-void Player::jump() {
-    if (isGrounded) {
-        float jumpForce = 8.0f;
-        velocity.y = (gravityDirection >= 0) ? jumpForce : -jumpForce;
-        isGrounded = false;
-    }
-}
-
-void Player::update(float dt, const std::vector<Platform>& platforms, float levelHeight) {
-    if (enableGravity) {
-        float gAccel = 20.0f * gravityDirection;
-        velocity.y -= gAccel * dt;
-    }
-
-    position.x += velocity.x * dt;
-
-    for (const auto& plat : platforms) {
-        glm::vec3 pMin = position - size * 0.5f;
-        glm::vec3 pMax = position + size * 0.5f;
-        glm::vec3 platMin = plat.position - plat.size * 0.5f;
-        glm::vec3 platMax = plat.position + plat.size * 0.5f;
-
-        bool collisionX = pMax.x >= platMin.x && pMin.x <= platMax.x;
-        bool isHittingSide = pMax.y > platMin.y + 0.1f && pMin.y < platMax.y - 0.1f;
-        bool collisionZ = pMax.z >= platMin.z && pMin.z <= platMax.z;
-
-        if (collisionX && isHittingSide && collisionZ) {
-            if (velocity.x > 0.0f) {
-                position.x = platMin.x - size.x * 0.5f;
-            } else if (velocity.x < 0.0f) {
-                position.x = platMax.x + size.x * 0.5f;
-            }
-            velocity.x = 0.0f;
-        }
-    }
-
-    float oldY = position.y;
-    position.y += velocity.y * dt;
-    isGrounded = false;
-
-    for (const auto& plat : platforms) {
-        glm::vec3 pMin = position - size * 0.5f;
-        glm::vec3 pMax = position + size * 0.5f;
-        glm::vec3 platMin = plat.position - plat.size * 0.5f;
-        glm::vec3 platMax = plat.position + plat.size * 0.5f;
-
-        bool collisionX = pMax.x >= platMin.x && pMin.x <= platMax.x;
-        bool collisionY = pMax.y >= platMin.y && pMin.y <= platMax.y;
-        bool collisionZ = pMax.z >= platMin.z && pMin.z <= platMax.z;
-
-        if (collisionX && collisionY && collisionZ) {
-            float oldBottom = oldY - size.y * 0.5f;
-            float oldTop = oldY + size.y * 0.5f;
-
-            if (gravityDirection > 0) {
-                if (oldBottom >= platMax.y - 0.1f && velocity.y <= 0.0f) {
-                    position.y = platMax.y + size.y * 0.5f;
-                    velocity.y = 0.0f;
-                    isGrounded = true;
-                } else if (oldTop <= platMin.y + 0.1f && velocity.y > 0.0f) {
-                    position.y = platMin.y - size.y * 0.5f;
-                    velocity.y = 0.0f;
-                }
-            } else {
-                if (oldTop <= platMin.y + 0.1f && velocity.y >= 0.0f) {
-                    position.y = platMin.y - size.y * 0.5f;
-                    velocity.y = 0.0f;
-                    isGrounded = true;
-                } else if (oldBottom >= platMax.y - 0.1f && velocity.y < 0.0f) {
-                    position.y = platMax.y + size.y * 0.5f;
-                    velocity.y = 0.0f;
-                }
-            }
-        }
-    }
-
-    float floorLevel = -10.0f; 
-    if (position.y - size.y * 0.5f <= floorLevel && gravityDirection > 0) {
-        position.y = floorLevel + size.y * 0.5f;
-        velocity.y = 0.0f;
-        isGrounded = true;
-    }
+bool Player::damage(int amount) {
+    if (invulnerability > 0.0f || health <= 0) return false;
+    health = std::max(0, health - amount);
+    invulnerability = 1.1f;
+    return true;
 }

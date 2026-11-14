@@ -1,9 +1,3 @@
-# Simplified visual baseline
-
-This revision derives a playable visual baseline from the existing full Red Drift implementation. Ships use basic triangles, cinematic sets use simple shapes, and decorative backgrounds and layered effects are reduced. Gameplay, progression, controls, and tests are included.
-
-The original full source is retained separately in a local handoff archive. This revision records the current simplification of an existing implementation.
-
 # Red Drift — Earth to Mars
 
 Учебная игра на C++17 и OpenGL3.3: горизонтальный космический шутер с видом сбоку.

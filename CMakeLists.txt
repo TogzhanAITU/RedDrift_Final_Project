@@ -1,29 +1,52 @@
-cmake_minimum_required(VERSION 3.10)
-project(PuzzlePlatformer)
-
+cmake_minimum_required(VERSION 3.16)
+project(RedDrift LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
-
-if(POLICY CMP0072)
-    cmake_policy(SET CMP0072 NEW)
-endif()
-
-find_package(glfw3 REQUIRED)
-find_package(GLEW REQUIRED)
-find_package(glm REQUIRED)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
+add_subdirectory(vendor/glfw EXCLUDE_FROM_ALL)
 find_package(OpenGL REQUIRED)
-
-add_executable(PuzzlePlatformer
-    src/main.cpp
-    src/Player.cpp
-    src/Level.cpp
+add_library(red_drift_glew STATIC vendor/glew/src/glew.c)
+target_include_directories(red_drift_glew PUBLIC vendor/glew/include)
+target_compile_definitions(red_drift_glew PUBLIC GLEW_STATIC GLEW_NO_GLU)
+target_link_libraries(red_drift_glew PUBLIC OpenGL::GL)
+add_library(flight_sim src/Player.cpp src/Level.cpp src/LevelWeapons.cpp src/Progress.cpp)
+target_include_directories(flight_sim PUBLIC src vendor/glm)
+add_library(red_drift_renderer
+    src/Renderer.cpp
+    src/RendererPrimitives.cpp
+    src/RendererScenes.cpp
+    src/RendererUi.cpp
 )
+target_link_libraries(red_drift_renderer PUBLIC flight_sim red_drift_glew)
 
-target_include_directories(PuzzlePlatformer PRIVATE src)
-
-# Pass absolute source directory path to preprocessor
-target_compile_definitions(PuzzlePlatformer PRIVATE PROJECT_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
-
-target_link_libraries(PuzzlePlatformer PRIVATE glfw GLEW::GLEW glm::glm OpenGL::GL)
-
-file(COPY shaders DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-file(COPY levels DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
+add_executable(RedDrift src/main.cpp)
+target_link_libraries(RedDrift PRIVATE red_drift_renderer glfw)
+target_compile_definitions(RedDrift PRIVATE GLFW_INCLUDE_NONE)
+foreach(target flight_sim red_drift_renderer RedDrift)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /utf-8)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -Wpedantic)
+    endif()
+endforeach()
+add_custom_command(TARGET RedDrift POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/shaders $<TARGET_FILE_DIR:RedDrift>/shaders)
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(flight_tests tests/flight_tests.cpp)
+    target_link_libraries(flight_tests PRIVATE flight_sim)
+    add_test(NAME flight_simulation COMMAND flight_tests)
+    add_executable(workshop_tests tests/workshop_tests.cpp)
+    target_link_libraries(workshop_tests PRIVATE flight_sim)
+    add_test(NAME workshop_and_weapons COMMAND workshop_tests)
+    add_executable(mars_tests tests/mars_tests.cpp)
+    target_link_libraries(mars_tests PRIVATE flight_sim)
+    add_test(NAME mars_rescue_sequence COMMAND mars_tests)
+    add_executable(weapon_upgrade_tests tests/weapon_upgrade_tests.cpp)
+    target_link_libraries(weapon_upgrade_tests PRIVATE flight_sim)
+    add_test(NAME weapon_upgrade_behavior COMMAND weapon_upgrade_tests)
+endif()
